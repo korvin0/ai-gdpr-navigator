@@ -1,0 +1,131 @@
+Структура документа Google Sheets
+Для того чтобы ваш разработчик мог настроить интеграцию без ошибок, я подготовил финальную структуру всех четырех вкладок Google Sheets. Все переменные (is_child, is_gen_ai, has_scraping, is_high_risk) и логические ID строго синхронизированы между вкладками.
+
+Вкладка 1: Logic_GDPR (Схема квалификации)
+url: https://docs.google.com/spreadsheets/d/e/2PACX-1vQMyZ-KFD_AJgQNpk-Q0j6A5viEN6JFlRMbAwkFCMASEHvFAUsXIV61D-WC_13guegJAIlo6gSF5z6Y/pub?gid=2046117556&single=true&output=csv
+Эта вкладка управляет интерактивным квестом в Фазе 1. Она определяет статус gdpr_status.
+ID
+Question (Вопрос)
+Hint (Подсказка для кнопки "Инфо")
+Next_If_Yes
+Next_If_No
+L1
+Содержит ли датасет персональные данные (ПД)?
+ПД — любая инфо о человеке (email, ID, фото, скрейпинг).
+L2
+EXIT_ANON
+L2
+Модель создана для поиска/выдачи инфо о лицах?
+Например: распознавание лиц или генерация досье.
+EXIT_GDPR
+L3
+L3
+Проводились ли атаки на извлечение ПД из весов?
+Проверка, можно ли "вытащить" данные через API модели.
+L4
+WARN_ATTACK
+L4
+Риск ре-идентификации признан ничтожным?
+Если вероятность восстановления ПД из модели близка к 0.
+EXIT_ANON
+EXIT_GDPR
+Переменные для разработчика: > * EXIT_ANON -> устанавливает gdpr_status = "anonymous"
+    • EXIT_GDPR -> устанавливает gdpr_status = "mandatory"
+    • WARN_ATTACK -> показывает текст "Без тестов анонимность не доказана" и ведет к EXIT_GDPR.
+
+Вкладка 2: Content_Checklist (Основной контент)
+url: https://docs.google.com/spreadsheets/d/e/2PACX-1vQMyZ-KFD_AJgQNpk-Q0j6A5viEN6JFlRMbAwkFCMASEHvFAUsXIV61D-WC_13guegJAIlo6gSF5z6Y/pub?gid=1062279979&single=true&output=csv
+Здесь собраны все меры. Бот фильтрует их на основе параметров проекта.
+ID
+Sheet
+Requirement (Требование)
+Trigger_Variable (Условие)
+Detailed_Hint (Инфо-блок)
+1.1
+Блок А
+Определить роль: Контроллер или Процессор.
+always
+См. Лист 2: Определите, кто несет ответственность.
+4.2
+Блок Б
+Использовать синтетические данные вместо реальных.
+is_child
+Для детей минимизация реальных данных критична.
+5.1
+Блок Б
+Проверить законность источника (ToS, robots.txt).
+has_scraping
+Скрейпинг требует аудита прав владельцев сайтов.
+5.3
+Блок Б
+Авто-удаление "шумовых" ПД при сборе данных.
+has_scraping
+Privacy by Design: фильтруйте ПД на входе.
+7.2
+Блок В
+Описать риски галлюцинаций в UI.
+is_gen_ai
+Пользователь должен знать, что ИИ может ошибаться.
+7.3
+Блок В
+Использовать визуальные/простые формы инфо.
+is_child
+Ребенку должны быть понятны его права в картинках.
+8.1
+Блок В
+Механизм удаления данных пользователя из модели.
+gdpr_mandatory
+Право на забвение (retraining/filters).
+9.2
+Блок В
+Проверка датасета на предвзятость (Bias test).
+is_high_risk
+AI Act требует исключить дискриминацию.
+10.1
+Блок Г
+Использовать формат весов safetensors.
+is_gen_ai
+Защита от выполнения произвольного кода.
+10.3
+Блок Г
+Внедрить водяные знаки (Watermarking).
+is_gen_ai
+AI Act Art. 50: маркировка ИИ-контента.
+10.5
+Блок Г
+Провести DPIA (оценка воздействия на права).
+is_high_risk
+Обязательно для систем высокого риска.
+
+Вкладка 3: System_Triggers (Стартовый профиль)
+url: https://docs.google.com/spreadsheets/d/e/2PACX-1vQMyZ-KFD_AJgQNpk-Q0j6A5viEN6JFlRMbAwkFCMASEHvFAUsXIV61D-WC_13guegJAIlo6gSF5z6Y/pub?gid=1004258855&single=true&output=csv
+Эти вопросы бот задает в Фазе 0 для настройки фильтров.
+Variable (Ключ)
+Question_Text (Вопрос бота)
+UI_Type
+is_gen_ai
+Это Генеративный ИИ (текст, изображения, видео)?
+Yes/No Buttons
+is_child
+Проект ориентирован на детей до 18 лет?
+Yes/No Buttons
+has_scraping
+Вы используете веб-скрейпинг для сбора данных?
+Yes/No Buttons
+is_high_risk
+ИИ используется в критической сфере (HR, медицина)?
+Yes/No Buttons
+
+Вкладка 4: Gemini_KB (База знаний)
+url: https://docs.google.com/spreadsheets/d/e/2PACX-1vQMyZ-KFD_AJgQNpk-Q0j6A5viEN6JFlRMbAwkFCMASEHvFAUsXIV61D-WC_13guegJAIlo6gSF5z6Y/pub?gid=1940152089&single=true&output=csv
+Справочник для финальных консультаций ИИ-эксперта.
+Topic
+Context_Data (Текст для промпта)
+Retraining
+Описание стратегий переобучения модели при отзыве согласия пользователя.
+DPIA
+Методология оценки рисков для ИИ-проектов по стандартам CNIL.
+De-anon
+Техническое описание атак (Inversion, Extraction) для проверки весов.
+AI_Act
+Справка по классификации систем высокого риска и требованиям к ним.
