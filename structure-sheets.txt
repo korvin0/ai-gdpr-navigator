@@ -115,6 +115,7 @@ Yes/No Buttons
 is_high_risk
 ИИ используется в критической сфере (HR, медицина)?
 Yes/No Buttons
+Hint (Подсказка для кнопки "Инфо")
 
 Вкладка 4: Gemini_KB (База знаний)
 url: https://docs.google.com/spreadsheets/d/e/2PACX-1vQMyZ-KFD_AJgQNpk-Q0j6A5viEN6JFlRMbAwkFCMASEHvFAUsXIV61D-WC_13guegJAIlo6gSF5z6Y/pub?gid=1940152089&single=true&output=csv

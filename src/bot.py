@@ -31,6 +31,9 @@ STATE_LOGIC = 0      # Фаза 0: Логический квест GDPR
 STATE_TRIGGERS = 1   # Фаза 1: Профилирование (триггеры)
 STATE_CHECKLIST = 2  # Фаза 2: Чек-лист мер
 STATE_REPORT = 3     # Фаза 3: Отчет
+STATE_REVIEW = 4     # Ожидание текста отзыва
+
+REVIEWS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "reviews.txt")
 
 # === User State Storage (in-memory, anonymous) ===
 USER_STATE: dict[int, dict] = {}
@@ -87,6 +90,20 @@ def kb_yes_no(callback_prefix: str, variable: str = "") -> InlineKeyboardMarkup:
     ])
 
 
+def kb_yes_no_info_trigger(callback_prefix: str, variable: str = "") -> InlineKeyboardMarkup:
+    """Клавиатура Да/Нет/Инфо для триггеров."""
+    suffix = f":{variable}" if variable else ""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✅ Да", callback_data=f"{callback_prefix}:yes{suffix}"),
+            InlineKeyboardButton(text="❌ Нет", callback_data=f"{callback_prefix}:no{suffix}"),
+        ],
+        [
+            InlineKeyboardButton(text="ℹ️ Инфо", callback_data=f"{callback_prefix}:info{suffix}"),
+        ]
+    ])
+
+
 def kb_yes_no_info(callback_prefix: str) -> InlineKeyboardMarkup:
     """Клавиатура Да/Нет/Инфо для логического квеста."""
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -124,7 +141,7 @@ def kb_checklist_progress() -> InlineKeyboardMarkup:
 def kb_report() -> InlineKeyboardMarkup:
     """Клавиатура финального отчета."""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💬 Спросить Gemini AI", callback_data="report:gemini")],
+        [InlineKeyboardButton(text="📝 Оставить отзыв", callback_data="report:review")],
         [InlineKeyboardButton(text="🔄 Начать новый аудит", callback_data="report:restart")],
     ])
 
@@ -132,14 +149,14 @@ def kb_report() -> InlineKeyboardMarkup:
 def kb_start_triggers() -> InlineKeyboardMarkup:
     """Кнопка начала опроса триггеров."""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➡️ Продолжить профилирование", callback_data="start_triggers")]
+        [InlineKeyboardButton(text="➡️ Определить профиля проекта", callback_data="start_triggers")]
     ])
 
 
 def kb_start_checklist() -> InlineKeyboardMarkup:
     """Кнопка начала чек-листа."""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➡️ Перейти к чек-листу мер", callback_data="start_checklist")]
+        [InlineKeyboardButton(text="➡️ Перейти к списку мер", callback_data="start_checklist")]
     ])
 
 
@@ -160,9 +177,9 @@ def kb_audit_not_required() -> InlineKeyboardMarkup:
 def kb_gdpr_knowledge() -> InlineKeyboardMarkup:
     """Клавиатура: знаете ли вы, применяется ли GDPR?"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🤔 Я точно не знаю", callback_data="gdpr_know:unknown")],
-        [InlineKeyboardButton(text="✅ Точно знаю, что применяется", callback_data="gdpr_know:yes")],
-        [InlineKeyboardButton(text="❌ Точно знаю, что НЕ применяется", callback_data="gdpr_know:no")],
+        [InlineKeyboardButton(text="🤔 Я НЕ ЗНАЮ", callback_data="gdpr_know:unknown")],
+        [InlineKeyboardButton(text="✅ Я точно знаю, что ПРИМЕНЯЕТСЯ", callback_data="gdpr_know:yes")],
+        [InlineKeyboardButton(text="❌ Я точно знаю, что НЕ ПРИМЕНЯЕТСЯ", callback_data="gdpr_know:no")],
     ])
 
 
@@ -180,9 +197,9 @@ async def cmd_start(message: Message) -> None:
     
     await message.answer(
         "👋 *Добро пожаловать в AI GDPR Navigator\\!*\n\n"
-        "Результаты работы бота носят справочный характер и основаны на информации, предоставленной пользователем\\. Окончательная правовая квалификация требует отдельного анализа экспертами\\.\n\n"
         "Я помогу проверить ваш ИИ\\-проект на соответствие нормам GDPR\\.\n\n"
-        "Знаете ли вы, применяется ли GDPR к вашей модели?",
+        "_Результаты работы бота носят справочный характер и основаны на информации, предоставленной пользователем\\. Окончательная правовая квалификация требует отдельного анализа экспертами\\._\n\n"
+        "Знаете ли вы, должна ли ваша модель соответствовать GDPR?",
         parse_mode="MarkdownV2",
         reply_markup=kb_gdpr_knowledge(),
     )
@@ -202,18 +219,19 @@ async def on_gdpr_knowledge(callback: CallbackQuery) -> None:
     if answer == "unknown":
         # Не знает → запускаем логический квест (Phase 0)
         await callback.message.answer(
-            "Хорошо, давайте определим это вместе\\!",
+            "Давайте определим вместе, должна ли ваша модель соответствовать GDPR\\!\n\n"
+            f"{_progress_block(0)}",
             parse_mode="MarkdownV2",
         )
         await send_logic_question_start_callback(callback, state)
     
     elif answer == "yes":
-        # Точно знает, что применяется → сразу в Phase 1 (Triggers)
         state["gdpr_status"] = "mandatory"
         state["state"] = STATE_TRIGGERS
         await callback.message.answer(
-            "⚖️ *GDPR применяется*\n\n"
-            "Отлично, тогда перейдем к профилированию вашего проекта\\.",
+            "⚖️ *GDPR ПРИМЕНИМ*\n\n"
+            f"{_progress_block(1)}\n\n"
+            "Теперь давайте определим особенности вашей ИИ системы, то есть профиль проекта\\. Для этого нужно пройти через 7 вопросов\\.",
             parse_mode="MarkdownV2",
             reply_markup=kb_start_triggers(),
         )
@@ -242,7 +260,8 @@ async def send_logic_question_start_callback(callback: CallbackQuery, state: dic
     
     state["logic_path"].append(node_id)
     
-    text = f"🧩 *Применимость GDPR*\n\n{_escape_md(node['question'])}"
+    q_num = len(state["logic_path"])
+    text = f"🧩 *Проверка применимости GDPR\\. Вопрос {q_num}*\n\n{_escape_md(node['question'])}"
     await callback.message.answer(text, parse_mode="MarkdownV2", reply_markup=kb_yes_no_info("lg"))
 
 
@@ -257,7 +276,8 @@ async def send_logic_question(callback: CallbackQuery, state: dict) -> None:
     
     state["logic_path"].append(node_id)
     
-    text = f"🧩 *Применимость GDPR*\n\n{_escape_md(node['question'])}"
+    q_num = len(state["logic_path"])
+    text = f"🧩 *Проверка применимости GDPR\\. Вопрос {q_num}*\n\n{_escape_md(node['question'])}"
     await callback.message.answer(text, parse_mode="MarkdownV2", reply_markup=kb_yes_no_info("lg"))
 
 
@@ -343,10 +363,10 @@ async def send_gdpr_not_applicable(callback: CallbackQuery, state: dict) -> None
 async def send_gdpr_applicable(callback: CallbackQuery, state: dict) -> None:
     """GDPR применяется - переходим к триггерам."""
     text = (
-        "⚖️ *GDPR ПРИМЕНЯЕТСЯ*\n\n"
+        "⚖️ *GDPR ПРИМЕНИМ*\n\n"
         "Ваша модель признана носителем персональных данных\\.\n\n"
-        "Теперь нужно определить ваш профиль и роль в проекте, "
-        "чтобы сформировать персональный чек\\-лист мер\\."
+        f"{_progress_block(1)}\n\n"
+        "Теперь давайте определим особенности вашей ИИ системы, то есть профиль проекта\\. Для этого нужно пройти через 7 вопросов\\.\n\n"
     )
     
     state["state"] = STATE_TRIGGERS
@@ -374,13 +394,16 @@ async def send_trigger_question(message_or_callback, state: dict) -> None:
     idx = state["trigger_index"]
     
     if idx >= len(triggers):
-        # Все триггеры пройдены - показать резюме
         await send_profile_summary(message_or_callback, state)
         return
     
     trigger = triggers[idx]
-    text = f"❓ *Вопрос {idx + 1}/{len(triggers)}*\n\n{_escape_md(trigger['question_text'])}"
-    kb = kb_yes_no("trg", trigger["variable"])
+    text = f"❓ *Определяем профиль проекта\\. Вопрос {idx + 1}\\.*\n\n{_escape_md(trigger['question_text'])}"
+    
+    if trigger.get("hint"):
+        kb = kb_yes_no_info_trigger("trg", trigger["variable"])
+    else:
+        kb = kb_yes_no("trg", trigger["variable"])
     
     if isinstance(message_or_callback, Message):
         await message_or_callback.answer(text, parse_mode="MarkdownV2", reply_markup=kb)
@@ -393,7 +416,7 @@ async def send_profile_summary(message_or_callback, state: dict) -> None:
     profile = state["profile"]
     
     # Формируем текст резюме на основе заполненных переменных
-    lines = ["⚙️ *Профиль настроен\\!*\n"]
+    lines = ["⚙️ *Профиль вашего проекта готов\\!*\n"]
     
     # Роли (новые триггеры)
     if profile.get("is_creator"):
@@ -416,7 +439,14 @@ async def send_profile_summary(message_or_callback, state: dict) -> None:
     if len(lines) == 1:
         lines.append("• Стандартный профиль")
     
-    lines.append("\nТеперь перейдем к персональному чек\\-листу мер\\.")
+    items = filter_content_by_profile(profile, state.get("gdpr_status") or "mandatory")
+    total = len(items)
+    
+    lines.append(f"\n{_progress_block(2)}\n")
+    lines.append("На основе профиля вашего проекта бот составил список мер, которые нужно выполнить для соответствия GDPR\\.\n")
+    lines.append(f"Чтобы полностью соответствовать GDPR, нужно выполнить *{total}* мер\\.")
+    lines.append("Пройдите по каждому пункту, отмечая выполненные меры\\.\n")
+    lines.append("Давайте проверим, насколько вы готовы к GDPR\\!")
     
     text = "\n".join(lines)
     
@@ -433,10 +463,19 @@ async def on_trigger_answer(callback: CallbackQuery) -> None:
     state = get_state(user_id)
     
     parts = callback.data.split(":")
-    answer = parts[1]  # "yes" или "no"
+    answer = parts[1]  # "yes", "no", или "info"
     variable = parts[2] if len(parts) > 2 else ""
     
-    # Записываем ответ в профиль (поддержка любых переменных)
+    if answer == "info":
+        triggers = load_system_triggers()
+        idx = state["trigger_index"]
+        hint = "Подсказка недоступна."
+        if idx < len(triggers):
+            hint = triggers[idx].get("hint") or hint
+        await callback.answer()
+        await callback.message.answer(f"ℹ️ *Подсказка:*\n\n{_escape_md(hint)}", parse_mode="MarkdownV2")
+        return
+    
     if variable:
         state["profile"][variable] = (answer == "yes")
     
@@ -466,14 +505,6 @@ async def on_start_checklist(callback: CallbackQuery) -> None:
     await callback.answer()
     await callback.message.edit_reply_markup(reply_markup=None)
     
-    total = len(items)
-    await callback.message.answer(
-        f"📋 *Ваш персональный чек\\-лист готов\\!*\n\n"
-        f"Всего мер к проверке: *{total}*\n\n"
-        f"Пройдите по каждому пункту, отмечая выполненные меры\\.",
-        parse_mode="MarkdownV2",
-    )
-    
     await send_checklist_item(callback, state)
 
 
@@ -493,9 +524,9 @@ async def send_checklist_item(callback: CallbackQuery, state: dict) -> None:
     done = len(state["content_done"])
     
     text = (
-        f"📌 *Пункт {idx + 1}/{total}* \\| Выполнено: {done}\n"
+        f"📌 *Шаг №{idx + 1} к соответствию GDPR*\n"
         f"🤹 {_escape_md(item['sheet'])}\n\n"
-        f"*{_escape_md(item['id'])}*: {_escape_md(item['requirement'])}"
+        f"{_escape_md(item['requirement'])}"
     )
     
     await callback.message.answer(text, parse_mode="MarkdownV2", reply_markup=kb_checklist_item(item["id"]))
@@ -568,9 +599,10 @@ async def show_progress(callback: CallbackQuery, state: dict) -> None:
 # === Phase 3: Report ===
 async def send_report(callback: CallbackQuery, state: dict) -> None:
     """Отправить финальный отчет."""
+    await callback.message.answer(_progress_block(3), parse_mode="MarkdownV2")
+    
     report = generate_report(state)
     
-    # Разбить на части, если слишком длинный
     if len(report) > 4000:
         parts = [report[i:i+4000] for i in range(0, len(report), 4000)]
         for i, part in enumerate(parts):
@@ -622,7 +654,7 @@ def generate_report(state: dict) -> str:
     skipped_items = [item for item in items if item["id"] in skipped]
     skipped_text = ""
     for item in skipped_items:
-        skipped_text += f"• 🔸 *{_escape_md(item['id'])}*: {_escape_md(item['requirement'])}\n"
+        skipped_text += f"• 🔸 {_escape_md(item['requirement'])}\n"
     if not skipped_text:
         skipped_text = "Все пункты выполнены\\! 🎉\n"
     
@@ -691,15 +723,51 @@ def generate_report(state: dict) -> str:
     return report
 
 
-@router.callback_query(F.data == "report:gemini")
-async def on_report_gemini(callback: CallbackQuery) -> None:
-    """Обработка запроса к Gemini (заглушка)."""
+@router.callback_query(F.data == "report:review")
+async def on_report_review(callback: CallbackQuery) -> None:
+    """Запрос отзыва от пользователя."""
+    user_id = callback.from_user.id
+    state = get_state(user_id)
+    state["state"] = STATE_REVIEW
+    
     await callback.answer()
     await callback.message.answer(
-        "🤖 *Gemini AI Expert*\n\n"
-        "Функция консультации с ИИ\\-экспертом находится в разработке\\.\n\n"
-        "В будущей версии вы сможете задать вопросы по результатам аудита\\.",
+        "📝 *Оставьте отзыв*\n\n"
+        "Напишите ваш отзыв текстовым сообщением\\.\n"
+        "Он поможет нам улучшить бота\\!",
         parse_mode="MarkdownV2",
+    )
+
+
+@router.message(F.text)
+async def on_text_message(message: Message) -> None:
+    """Обработка текстовых сообщений (отзыв)."""
+    user_id = message.from_user.id if message.from_user else 0
+    state = get_state(user_id)
+    
+    if state["state"] != STATE_REVIEW:
+        return
+    
+    review_text = (message.text or "").strip()
+    if review_text.startswith("/"):
+        return
+    if not review_text:
+        await message.answer("Пожалуйста, напишите текст отзыва\\.", parse_mode="MarkdownV2")
+        return
+    
+    username = message.from_user.username if message.from_user and message.from_user.username else f"id{user_id}"
+    date_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+    
+    with open(REVIEWS_FILE, "a", encoding="utf-8") as f:
+        f.write(f"[{date_str}] @{username}: {review_text}\n")
+    
+    state["state"] = STATE_REPORT
+    
+    await message.answer(
+        "✅ *Спасибо за отзыв\\!*\n\n"
+        "Ваше мнение очень важно для нас\\.",
+        parse_mode="MarkdownV2",
+        reply_markup=kb_report(),
     )
 
 
@@ -721,6 +789,25 @@ async def on_report_restart(callback: CallbackQuery) -> None:
 
 
 # === Helpers ===
+def _progress_block(phase: int) -> str:
+    """Блок прогресса по этапам (MarkdownV2, уже экранирован)."""
+    labels = [
+        "Проверка применимости GDPR",
+        "Определить профиль проекта \\(7 вопросов\\)",
+        "Список мер для соответствия GDPR",
+        "Получить отчет для разработчиков",
+    ]
+    lines = ["*Этапы проверки:*"]
+    for i, label in enumerate(labels):
+        if i < phase:
+            lines.append(f"✅ ~{label} \\- сделано~")
+        elif i == phase:
+            lines.append(f"👉 {label}")
+        else:
+            lines.append(f"☑️ {label}")
+    return "\n".join(lines)
+
+
 def _escape_md(text: str) -> str:
     """Экранировать специальные символы для MarkdownV2."""
     if not text:

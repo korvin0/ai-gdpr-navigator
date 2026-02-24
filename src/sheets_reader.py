@@ -37,7 +37,7 @@ def _s(value, default: str = "") -> str:
 def load_system_triggers() -> list[dict]:
     """
     Загружает триггеры для Фазы 0.
-    Возвращает: [{"variable": "is_gen_ai", "question_text": "...", "ui_type": "Yes/No Buttons"}, ...]
+    Возвращает: [{"variable": "is_gen_ai", "question_text": "...", "ui_type": "Yes/No Buttons", "hint": "..."}, ...]
     """
     url = _get_url("CSV_URL_SYSTEM_TRIGGERS", DEFAULT_CSV_SYSTEM_TRIGGERS)
     try:
@@ -47,20 +47,28 @@ def load_system_triggers() -> list[dict]:
             variable = _s(row.get("Variable (Ключ)") or row.get("Variable") or row.get("Ключ"))
             question = _s(row.get("Question_Text (Вопрос бота)") or row.get("Question_Text") or row.get("Вопрос бота"))
             ui_type = _s(row.get("UI_Type") or row.get("UI Type"), "Yes/No Buttons")
+            hint = _s(row.get("Hint (Подсказка для кнопки \"Инфо\")") or row.get("Hint") or row.get("Подсказка"))
+            if not hint:
+                for k, v in row.items():
+                    if "Hint" in k or "Подсказка" in k:
+                        hint = _s(v)
+                        if hint:
+                            break
             if variable and question:
                 result.append({
                     "variable": variable,
                     "question_text": question,
                     "ui_type": ui_type,
+                    "hint": hint,
                 })
         return result
     except Exception:
         # Fallback данные
         return [
-            {"variable": "is_gen_ai", "question_text": "Это Генеративный ИИ (текст, изображения, видео)?", "ui_type": "Yes/No Buttons"},
-            {"variable": "is_child", "question_text": "Проект ориентирован на детей до 18 лет?", "ui_type": "Yes/No Buttons"},
-            {"variable": "has_scraping", "question_text": "Вы используете веб-скрейпинг для сбора данных?", "ui_type": "Yes/No Buttons"},
-            {"variable": "is_high_risk", "question_text": "ИИ используется в критической сфере (HR, медицина)?", "ui_type": "Yes/No Buttons"},
+            {"variable": "is_gen_ai", "question_text": "Это Генеративный ИИ (текст, изображения, видео)?", "ui_type": "Yes/No Buttons", "hint": "Генеративный ИИ создаёт новый контент (текст, изображения, видео) на основе обучающих данных."},
+            {"variable": "is_child", "question_text": "Проект ориентирован на детей до 18 лет?", "ui_type": "Yes/No Buttons", "hint": "Если среди пользователей могут быть несовершеннолетние, применяются усиленные меры защиты."},
+            {"variable": "has_scraping", "question_text": "Вы используете веб-скрейпинг для сбора данных?", "ui_type": "Yes/No Buttons", "hint": "Веб-скрейпинг — автоматический сбор данных с сайтов. Требует проверки прав и robots.txt."},
+            {"variable": "is_high_risk", "question_text": "ИИ используется в критической сфере (HR, медицина)?", "ui_type": "Yes/No Buttons", "hint": "Системы высокого риска по AI Act: HR, медицина, правосудие, образование, биометрия."},
         ]
 
 
