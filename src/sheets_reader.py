@@ -13,6 +13,14 @@ DEFAULT_CSV_CONTENT_CHECKLIST = "https://docs.google.com/spreadsheets/d/e/2PACX-
 DEFAULT_CSV_SYSTEM_TRIGGERS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQMyZ-KFD_AJgQNpk-Q0j6A5viEN6JFlRMbAwkFCMASEHvFAUsXIV61D-WC_13guegJAIlo6gSF5z6Y/pub?gid=1004258855&single=true&output=csv"
 DEFAULT_CSV_GEMINI_KB = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQMyZ-KFD_AJgQNpk-Q0j6A5viEN6JFlRMbAwkFCMASEHvFAUsXIV61D-WC_13guegJAIlo6gSF5z6Y/pub?gid=1940152089&single=true&output=csv"
 
+DEFAULT_PROHIBITED_PRACTICES = [
+    "Скрытое воздействие на подсознание",
+    "Social scoring",
+    "Массовый скрейпинг лиц из интернета/камер для распознавания",
+    "Оценка эмоций на рабочем месте/в учебных заведениях",
+    "Оценка риска совершения преступлений физлицами на основе профилирования/черт характера",
+]
+
 
 def _get_url(env_key: str, default: str) -> str:
     """Получить URL из env или использовать default."""
@@ -33,11 +41,28 @@ def _s(value, default: str = "") -> str:
     return str(value).strip() or default
 
 
+def _split_options(value: str) -> list[str]:
+    """Разобрать список вариантов из ячейки Google Sheets."""
+    text = _s(value)
+    if not text:
+        return []
+
+    for separator in ("|", ";", "\n", "⬜"):
+        text = text.replace(separator, "\n")
+
+    result = []
+    for item in text.splitlines():
+        cleaned = item.strip(" \t\r\n-•0123456789.)")
+        if cleaned:
+            result.append(cleaned)
+    return result
+
+
 # === System_Triggers (Фаза 0) ===
 def load_system_triggers() -> list[dict]:
     """
     Загружает триггеры для Фазы 0.
-    Возвращает: [{"variable": "is_gen_ai", "question_text": "...", "ui_type": "Yes/No Buttons", "hint": "..."}, ...]
+    Возвращает: [{"variable": "is_gen_ai", "question_text": "...", "ui_type": "Yes/No Buttons", "hint": "...", "options": [...]}, ...]
     """
     url = _get_url("CSV_URL_SYSTEM_TRIGGERS", DEFAULT_CSV_SYSTEM_TRIGGERS)
     try:
@@ -48,35 +73,48 @@ def load_system_triggers() -> list[dict]:
             question = _s(row.get("Question_Text (Вопрос бота)") or row.get("Question_Text") or row.get("Вопрос бота"))
             ui_type = _s(row.get("UI_Type") or row.get("UI Type"), "Yes/No Buttons")
             hint = _s(row.get("Hint (Подсказка для кнопки \"Инфо\")") or row.get("Hint") or row.get("Подсказка"))
+            options = _split_options(
+                row.get("Options")
+                or row.get("Options (Варианты)")
+                or row.get("Checkbox_Options")
+                or row.get("Checkbox Options")
+                or row.get("Варианты")
+                or ""
+            )
             if not hint:
                 for k, v in row.items():
                     if "Hint" in k or "Подсказка" in k:
                         hint = _s(v)
                         if hint:
                             break
+            if variable == "prohibited_type" and not options:
+                options = DEFAULT_PROHIBITED_PRACTICES
             if variable and question:
                 result.append({
                     "variable": variable,
                     "question_text": question,
                     "ui_type": ui_type,
                     "hint": hint,
+                    "options": options,
                 })
         return result
     except Exception:
         # Fallback данные
         return [
             {"variable": "is_gen_ai", "question_text": "Это Генеративный ИИ (текст, изображения, видео)?", "ui_type": "Yes/No Buttons", "hint": "Генеративный ИИ создаёт новый контент (текст, изображения, видео) на основе обучающих данных."},
+            {"variable": "prohibited_type", "question_text": "Использует ли ваша ИИ-система практики, которые полностью запрещены на территории Европейского союза?", "ui_type": "Yes/No Buttons", "hint": "", "options": DEFAULT_PROHIBITED_PRACTICES},
             {"variable": "is_child", "question_text": "Проект ориентирован на детей до 18 лет?", "ui_type": "Yes/No Buttons", "hint": "Если среди пользователей могут быть несовершеннолетние, применяются усиленные меры защиты."},
             {"variable": "has_scraping", "question_text": "Вы используете веб-скрейпинг для сбора данных?", "ui_type": "Yes/No Buttons", "hint": "Веб-скрейпинг — автоматический сбор данных с сайтов. Требует проверки прав и robots.txt."},
             {"variable": "is_high_risk", "question_text": "ИИ используется в критической сфере (HR, медицина)?", "ui_type": "Yes/No Buttons", "hint": "Системы высокого риска по AI Act: HR, медицина, правосудие, образование, биометрия."},
         ]
 
 
-# === Logic_GDPR (Фаза 1) ===
+# === Logic_GDPR (Фаза 0: Block L + Block M) ===
 def load_logic_gdpr() -> list[dict]:
     """
-    Загружает логику квеста для Фазы 1.
-    Возвращает: [{"id": "L1", "question": "...", "hint": "...", "next_yes": "L2", "next_no": "EXIT_ANON"}, ...]
+    Загружает логику входного скрининга для Фазы 0.
+    Возвращает: [{"id": "L1", "question": "...", "hint": "...", "next_yes": "L2", "next_no": "M1"}, ...]
+    Вкладка содержит GDPR Block L (L1-L4) и тексты вопросов AI Act Block M (M1-M2).
     """
     url = _get_url("CSV_URL_LOGIC_GDPR", DEFAULT_CSV_LOGIC_GDPR)
     # Также поддержка старой переменной CSV_URL
@@ -114,10 +152,10 @@ def load_logic_gdpr() -> list[dict]:
     except Exception:
         # Fallback данные
         return [
-            {"id": "L1", "question": "Содержит ли датасет персональные данные (ПД)?", "hint": "ПД — любая инфо о человеке (email, ID, фото, скрейпинг).", "next_yes": "L2", "next_no": "EXIT_ANON"},
-            {"id": "L2", "question": "Модель создана для поиска/выдачи инфо о лицах?", "hint": "Например: распознавание лиц или генерация досье.", "next_yes": "EXIT_GDPR", "next_no": "L3"},
-            {"id": "L3", "question": "Проводились ли атаки на извлечение ПД из весов?", "hint": "Проверка, можно ли \"вытащить\" данные через API модели.", "next_yes": "L4", "next_no": "WARN_ATTACK"},
-            {"id": "L4", "question": "Риск ре-идентификации признан ничтожным?", "hint": "Если вероятность восстановления ПД из модели близка к 0.", "next_yes": "EXIT_ANON", "next_no": "EXIT_GDPR"},
+            {"id": "L1", "question": "Содержит ли датасет персональные данные (ПД)?", "hint": "ПД — любая инфо о человеке (email, ID, фото, скрейпинг).", "next_yes": "L2", "next_no": "M1"},
+            {"id": "L2", "question": "Модель создана для поиска/выдачи инфо о лицах?", "hint": "Например: распознавание лиц или генерация досье.", "next_yes": "M1", "next_no": "L3"},
+            {"id": "L3", "question": "Проводились ли атаки на извлечение ПД из весов?", "hint": "Проверка, можно ли \"вытащить\" данные через API модели.", "next_yes": "L4", "next_no": "M1"},
+            {"id": "L4", "question": "Риск ре-идентификации признан ничтожным?", "hint": "Если вероятность восстановления ПД из модели близка к 0.", "next_yes": "M1", "next_no": "M1"},
         ]
 
 

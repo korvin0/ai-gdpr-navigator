@@ -1,9 +1,9 @@
 Структура документа Google Sheets
-Для того чтобы ваш разработчик мог настроить интеграцию без ошибок, я подготовил финальную структуру всех четырех вкладок Google Sheets. Все переменные (is_child, is_gen_ai, has_scraping, is_high_risk) и логические ID строго синхронизированы между вкладками.
+Для того чтобы разработчик мог настроить интеграцию без ошибок, здесь описана структура вкладок Google Sheets. Каноническое описание бизнес-логики и внутренних флагов хранится в docs/system-business-logic.md.
 
 Вкладка 1: Logic_GDPR (Схема квалификации)
 url: https://docs.google.com/spreadsheets/d/e/2PACX-1vQMyZ-KFD_AJgQNpk-Q0j6A5viEN6JFlRMbAwkFCMASEHvFAUsXIV61D-WC_13guegJAIlo6gSF5z6Y/pub?gid=2046117556&single=true&output=csv
-Эта вкладка управляет интерактивным квестом в Фазе 1. Она определяет статус gdpr_status.
+Эта вкладка управляет интерактивным квестом GDPR в блоке L и хранит тексты вопросов M1/M2 для AI Act Screening в последних двух строках после L1-L4. Старые терминальные исходы больше не завершают сценарий: они переводят пользователя в блок M / AI Act Screening.
 ID
 Question (Вопрос)
 Hint (Подсказка для кнопки "Инфо")
@@ -13,29 +13,53 @@ L1
 Содержит ли датасет персональные данные (ПД)?
 ПД — любая инфо о человеке (email, ID, фото, скрейпинг).
 L2
-EXIT_ANON
+M1
 L2
 Модель создана для поиска/выдачи инфо о лицах?
 Например: распознавание лиц или генерация досье.
-EXIT_GDPR
+M1
 L3
 L3
 Проводились ли атаки на извлечение ПД из весов?
 Проверка, можно ли "вытащить" данные через API модели.
 L4
-WARN_ATTACK
+M1
 L4
 Риск ре-идентификации признан ничтожным?
 Если вероятность восстановления ПД из модели близка к 0.
-EXIT_ANON
-EXIT_GDPR
-Переменные для разработчика: > * EXIT_ANON -> устанавливает gdpr_status = "anonymous"
-    • EXIT_GDPR -> устанавливает gdpr_status = "mandatory"
-    • WARN_ATTACK -> показывает текст "Без тестов анонимность не доказана" и ведет к EXIT_GDPR.
+M1
+M1
+Переменные для разработчика:
+    • L1 / No -> gdpr_status = "anonymous", gdpr_mandatory = False
+    • L2 / Yes -> gdpr_status = "mandatory", gdpr_mandatory = True
+    • L3 / No -> gdpr_status = "mandatory", gdpr_mandatory = True, attack_risk = True
+    • L4 / Yes -> gdpr_status = "anonymous", gdpr_mandatory = False
+    • L4 / No -> gdpr_status = "mandatory", gdpr_mandatory = True
+    • Таблица может возвращать составные значения:
+        - M1 (Флаг: gdpr=True) EXIT_GDPR -> переход в M1, gdpr_mandatory = True
+        - M1 (Флаг: gdpr=False) EXIT_ANON -> переход в M1, gdpr_mandatory = False
+    • EXIT_ANON, EXIT_GDPR и WARN_ATTACK в этих строках считаются человеческими пометками и игнорируются кодом.
+
+Блок M / AI Act Screening (тексты вопросов лежат в Logic_GDPR)
+ID
+Question
+Next_If_Yes
+Next_If_No
+M1
+Что именно мы тестируем: независимую ИИ-модель или готовое приложение/систему, куда этот ИИ встроен?
+M2; target = "system"
+M2; target = "model"
+M2
+Связан ли ваш ИИ-продукт с рынком Европейского союза (ЕС)?
+V1 / первый вопрос System_Triggers; ai_act_status = "in_scope"
+AIA_OUT_OF_SCOPE; ai_act_status = "AIA_OUT_OF_SCOPE"
+
+Для всех исходов, где gdpr_mandatory = False, в итоговую документацию и подсказки добавляется дисклеймер:
+«Документация должна позволять регуляторам и пользователям убедиться, что модель не обрабатывает персональные данные».
 
 Вкладка 2: Content_Checklist (Основной контент)
 url: https://docs.google.com/spreadsheets/d/e/2PACX-1vQMyZ-KFD_AJgQNpk-Q0j6A5viEN6JFlRMbAwkFCMASEHvFAUsXIV61D-WC_13guegJAIlo6gSF5z6Y/pub?gid=1062279979&single=true&output=csv
-Здесь собраны все меры. Бот фильтрует их на основе параметров проекта.
+Здесь собраны все меры. Бот фильтрует их на основе параметров проекта и флага gdpr_mandatory.
 ID
 Sheet
 Requirement (Требование)
@@ -99,13 +123,18 @@ is_high_risk
 
 Вкладка 3: System_Triggers (Стартовый профиль)
 url: https://docs.google.com/spreadsheets/d/e/2PACX-1vQMyZ-KFD_AJgQNpk-Q0j6A5viEN6JFlRMbAwkFCMASEHvFAUsXIV61D-WC_13guegJAIlo6gSF5z6Y/pub?gid=1004258855&single=true&output=csv
-Эти вопросы бот задает в Фазе 0 для настройки фильтров.
+Эти вопросы бот задает в Фазе 1 для настройки фильтров. Если пользователь отвечает Yes на prohibited_type, бот блокирует дальнейшие шаги и отправляет предупреждение Prohibited AI без перехода к чек-листу.
 Variable (Ключ)
 Question_Text (Вопрос бота)
 UI_Type
+Options (Варианты)
 is_gen_ai
 Это Генеративный ИИ (текст, изображения, видео)?
 Yes/No Buttons
+prohibited_type
+Использует ли ваша ИИ-система практики, которые полностью запрещены на территории Европейского союза?
+Yes/No Buttons
+Опционально: список запрещенных практик для причины блокировки. Если колонка не заполнена, бот использует стандартные названия: скрытое воздействие на подсознание; social scoring; массовый скрейпинг лиц из интернета/камер для распознавания; оценка эмоций на рабочем месте/в учебных заведениях; оценка риска совершения преступлений физлицами на основе профилирования/черт характера.
 is_child
 Проект ориентирован на детей до 18 лет?
 Yes/No Buttons

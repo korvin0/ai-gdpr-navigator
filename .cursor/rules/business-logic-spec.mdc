@@ -1,0 +1,21 @@
+---
+description: Business logic source of truth for AI GDPR Navigator
+alwaysApply: true
+---
+
+# Business Logic Specification
+
+Before changing FSM routes, callback handlers, Google Sheets parsing, checklist filtering, session fields, or final report content, read `docs/system-business-logic.md`.
+
+Keep these files synchronized when business logic changes:
+
+- `docs/system-business-logic.md`: canonical business logic.
+- `structure-sheets.txt`: Google Sheets contract and published tab structure.
+- `phase-0.txt`: current entry screening flow summary.
+- `README.md`: high-level project flow.
+
+Prefer `gdpr_mandatory` for new logic. Treat `gdpr_status` as a display/backward-compatibility value.
+
+Old Block L terminal tokens (`EXIT_ANON`, `EXIT_GDPR`, `WARN_ATTACK`) are human notes in Google Sheets only. Do not use them for routing or flag assignment.
+
+Google Sheets may return combined transition values like `M1 (Флаг: gdpr=True) EXIT_GDPR` or `M1 (Флаг: gdpr=False) EXIT_ANON`. Parse the explicit `gdpr=True/False` flag as the source of truth for `gdpr_mandatory`.

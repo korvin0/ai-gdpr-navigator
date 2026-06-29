@@ -8,14 +8,18 @@ Telegram-бот на aiogram для проверки ИИ-проектов на 
 /start
    │
    ▼
-Фаза 0: Профилирование (4 вопроса Yes/No)
-   │  → is_gen_ai, is_child, has_scraping, is_high_risk
+Фаза 0: GDPR-квалификация (Block L)
+   │  → gdpr_mandatory, attack_risk
    ▼
-Фаза 1: Логический квест GDPR
-   │  → L1 → L2 → L3 → L4 → EXIT_ANON | EXIT_GDPR | WARN_ATTACK
+Block M: Скрининг AI Act
+   │  → target, ai_act_status
+   ▼
+Фаза 1: Профилирование (System_Triggers)
+   │  → is_gen_ai, prohibited_type, is_child, has_scraping, is_high_risk
+   │  → при prohibited_type = Yes аудит блокируется как Prohibited AI
    ▼
 Фаза 2: Персональный чек-лист мер
-   │  → Фильтрация по профилю и статусу GDPR
+   │  → Фильтрация по профилю, gdpr_mandatory и AI Act scope
    │  → Кнопки: Сделано / Инфо / Пропустить
    ▼
 Фаза 3: Финальный отчет
@@ -25,10 +29,12 @@ Telegram-бот на aiogram для проверки ИИ-проектов на 
 
 ## Фазы
 
-- **Фаза 0** — Профилирование: 4 вопроса о типе ИИ, аудитории, источнике данных и уровне риска.
-- **Фаза 1** — Квалификация GDPR: логический квест для определения статуса (Anonymous / Mandatory).
+- **Фаза 0** — Квалификация GDPR и AI Act: Block L определяет `gdpr_mandatory`, затем Block M определяет `target` и `ai_act_status`.
+- **Фаза 1** — Профилирование: вопросы о типе ИИ, запрещенных AI Act практиках, аудитории, источнике данных и уровне риска. Ответ `Yes` на `prohibited_type` останавливает аудит до чек-листа и отчета.
 - **Фаза 2** — Чек-лист мер: персонализированный список требований с подсказками из Google Sheets.
 - **Фаза 3** — Отчет: итоговый документ с рекомендациями и юридическим комментарием.
+
+Подробная бизнес-логика описана в `docs/system-business-logic.md`.
 
 ## Установка и запуск
 
@@ -80,6 +86,8 @@ python main.py
 │   └── sheets_reader.py # Загрузка 4 вкладок из CSV
 ├── env.example          # Пример .env
 ├── requirements.txt     # Зависимости
+├── docs/                # Каноническая бизнес-спецификация
+├── .cursor/rules/       # Правила для Cursor AI
 └── *.txt                # Спецификации фаз и шаблоны
 ```
 
@@ -88,7 +96,10 @@ python main.py
 ### Logic_GDPR
 | ID | Question (Вопрос) | Hint | Next_If_Yes | Next_If_No |
 |----|-------------------|------|-------------|------------|
-| L1 | Вопрос... | Подсказка... | L2 | EXIT_ANON |
+| L1 | Вопрос... | Подсказка... | L2 | M1 |
+| M1 | Вопрос AI Act... | | M2 | M2 |
+
+В этой же вкладке после `L1-L4` должны лежать строки `M1` и `M2`: бот читает из них тексты вопросов AI Act Screening. Старые значения `EXIT_ANON`, `EXIT_GDPR`, `WARN_ATTACK` могут оставаться в таблице как человеческие пометки, но код не использует их для маршрутизации или установки флагов.
 
 ### Content_Checklist
 | ID | Sheet | Requirement (Требование) | Trigger_Variable | Detailed_Hint |
@@ -96,9 +107,10 @@ python main.py
 | 1.1 | Блок А | Требование... | always | Подсказка... |
 
 ### System_Triggers
-| Variable | Question_Text | UI_Type |
-|----------|---------------|---------|
-| is_gen_ai | Вопрос... | Yes/No Buttons |
+| Variable | Question_Text | UI_Type | Options |
+|----------|---------------|---------|---------|
+| is_gen_ai | Вопрос... | Yes/No Buttons | |
+| prohibited_type | Вопрос о практиках, запрещенных ст. 5 AI Act | Yes/No Buttons | Опциональный список практик для причины блокировки |
 
 ### Gemini_KB
 | Topic | Context_Data |
