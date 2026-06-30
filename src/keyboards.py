@@ -45,8 +45,8 @@ def kb_ai_target() -> InlineKeyboardMarkup:
     """Клавиатура выбора объекта AI Act-скрининга."""
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="🏗️ Система", callback_data="ai_act:yes"),
-            InlineKeyboardButton(text="🧠 Модель", callback_data="ai_act:no"),
+            InlineKeyboardButton(text="📦 Независимая модель", callback_data="ai_act:model"),
+            InlineKeyboardButton(text="🖥 Готовая система", callback_data="ai_act:system"),
         ]
     ])
 
@@ -121,7 +121,7 @@ def kb_audit_not_required() -> InlineKeyboardMarkup:
 def kb_gdpr_knowledge() -> InlineKeyboardMarkup:
     """Клавиатура: знаете ли вы, применяется ли GDPR?"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🤔 Я НЕ ЗНАЮ", callback_data="gdpr_know:unknown")],
+        [InlineKeyboardButton(text="🤔 Я НЕ ЗНАЮ, ЧТО ПРИМЕНЯЕТСЯ GDPR", callback_data="gdpr_know:unknown")],
         [InlineKeyboardButton(text="✅ Я точно знаю, что ПРИМЕНЯЕТСЯ", callback_data="gdpr_know:yes")],
-        [InlineKeyboardButton(text="❌ Я точно знаю, что НЕ ПРИМЕНЯЕТСЯ", callback_data="gdpr_know:no")],
+        [InlineKeyboardButton(text="❌ Я точно знаю, что НЕ ПРИМЕНЯЕТСЯ GDPR", callback_data="gdpr_know:no")],
     ])

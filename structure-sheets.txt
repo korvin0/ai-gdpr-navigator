@@ -47,19 +47,20 @@ Next_If_Yes
 Next_If_No
 M1
 Что именно мы тестируем: независимую ИИ-модель или готовое приложение/систему, куда этот ИИ встроен?
-M2; target = "system"
-M2; target = "model"
+M2 (legacy column; UI shows "📦 Независимая модель" -> ai_type = "model")
+M2 (legacy column; UI shows "🖥 Готовая система" -> ai_type = "system")
 M2
 Связан ли ваш ИИ-продукт с рынком Европейского союза (ЕС)?
 V1 / первый вопрос System_Triggers; ai_act_status = "in_scope"
-AIA_OUT_OF_SCOPE; ai_act_status = "AIA_OUT_OF_SCOPE"
+AIA_OUT_OF_SCOPE; ai_act_status = "AIA_OUT_OF_SCOPE"; без System_Triggers; если gdpr_mandatory = True, отфильтровать Content_Checklist и запустить чек-лист; если gdpr_mandatory = False, завершить без чек-листа
 
 Для всех исходов, где gdpr_mandatory = False, в итоговую документацию и подсказки добавляется дисклеймер:
 «Документация должна позволять регуляторам и пользователям убедиться, что модель не обрабатывает персональные данные».
+В финальный отчет эта фраза попадает только если пользователь пришел через L4 / Yes (Next_If_Yes на L4), то есть state.anon_documentation_disclaimer = True.
 
 Вкладка 2: Content_Checklist (Основной контент)
 url: https://docs.google.com/spreadsheets/d/e/2PACX-1vQMyZ-KFD_AJgQNpk-Q0j6A5viEN6JFlRMbAwkFCMASEHvFAUsXIV61D-WC_13guegJAIlo6gSF5z6Y/pub?gid=1062279979&single=true&output=csv
-Здесь собраны все меры. Бот фильтрует их на основе параметров проекта и флага gdpr_mandatory.
+Здесь собраны все меры. Бот фильтрует их на основе ai_type, параметров проекта и флага gdpr_mandatory.
 ID
 Sheet
 Requirement (Требование)
@@ -121,9 +122,21 @@ AI Act Art. 50: маркировка ИИ-контента.
 is_high_risk
 Обязательно для систем высокого риска.
 
+Правила редьюсера чек-листа:
+    • Trigger_Variable может быть одиночным флагом или выражением: gdpr_mandatory AND (is_creator OR is_modifier), ai_type == 'system' AND is_high_risk.
+    • Перед вычислением выражения все флаги из сессии приводятся к Boolean; отсутствующие имена из выражения получают False; gdpr_mandatory берется из Фазы 0; ai_type остается строкой "system" или "model"; always = True.
+    • ai_type = "model": для вычисления чек-листа маскировать is_high_risk, is_child, prohibited_type и is_prohibited в False; модельные/GPAI требования задавать в CSV условиями вроде ai_type == 'model' AND is_gen_ai.
+    • ai_type = "system": учитывать продуктовые флаги is_high_risk, is_child, prohibited_type, is_prohibited.
+    • ai_type = "system" и (is_modifier или is_brand_owner): принудительно добавить строку про правовой статус сторон / Контролер vs Процессор / Provider и дописать в Detailed_Hint предупреждение о Role Shift по ст. 25 AI Act.
+
+Правила финального отчета:
+    • AIA_OUT_OF_SCOPE: роль = "Вне зоны регулирования AI Act (опрос не проводился)", категория = "Не применимо (Out of Scope)", следующие шаги — GDPR без AI Act регуляторных действий.
+    • PROHIBITED_RISK / is_prohibited: категория = "🔴 Запрещенная практика (Prohibited - ст. 5 AI Act)", стандартные задачи и следующие шаги очищаются, комментарий заменяется жестким юридическим блоком по ст. 5 AI Act.
+    • is_high_risk или is_gen_ai: категория = High-Risk или GPAI, следующие шаги включают техдокументацию для органа ЕС, Conformity Assessment и регистрацию в базе ИИ ЕС.
+
 Вкладка 3: System_Triggers (Стартовый профиль)
 url: https://docs.google.com/spreadsheets/d/e/2PACX-1vQMyZ-KFD_AJgQNpk-Q0j6A5viEN6JFlRMbAwkFCMASEHvFAUsXIV61D-WC_13guegJAIlo6gSF5z6Y/pub?gid=1004258855&single=true&output=csv
-Эти вопросы бот задает в Фазе 1 для настройки фильтров. Если пользователь отвечает Yes на prohibited_type, бот блокирует дальнейшие шаги и отправляет предупреждение Prohibited AI без перехода к чек-листу.
+Эти вопросы бот задает строго после M2 = Yes для настройки фильтров. Если пользователь отвечает Yes на prohibited_type, бот выставляет PROHIBITED_RISK, блокирует дальнейшие шаги и отправляет предупреждение Prohibited AI без перехода к чек-листу.
 Variable (Ключ)
 Question_Text (Вопрос бота)
 UI_Type

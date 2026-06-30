@@ -5,8 +5,9 @@ from aiogram.types import CallbackQuery
 
 from ..formatting import escape_md, progress_block
 from ..keyboards import kb_ai_act_scope, kb_ai_target, kb_audit_not_required
-from ..sheets_reader import get_logic_node
-from ..state import STATE_AI_ACT, STATE_TRIGGERS, get_state
+from ..sheets_reader import filter_content_by_state, get_logic_node
+from ..state import STATE_AI_ACT, STATE_CHECKLIST, STATE_REPORT, STATE_TRIGGERS, get_state
+from .checklist import send_checklist_item
 from .triggers import send_trigger_question
 
 router = Router()
@@ -81,7 +82,14 @@ async def on_ai_act_answer(callback: CallbackQuery) -> None:
     await callback.message.edit_reply_markup(reply_markup=None)
 
     if node_id == "M1":
-        state["target"] = "system" if answer == "yes" else "model"
+        if answer in {"yes", "no"}:
+            answer = "system" if answer == "yes" else "model"
+        if answer not in {"model", "system"}:
+            await callback.message.answer("⚠️ Неизвестный тип объекта проверки. Начните заново с /start")
+            return
+
+        state["ai_type"] = answer
+        state["target"] = answer
         state["ai_act_node"] = "M2"
         await send_ai_act_question(callback, state)
         return
@@ -94,22 +102,33 @@ async def on_ai_act_answer(callback: CallbackQuery) -> None:
         return
 
     state["ai_act_status"] = "AIA_OUT_OF_SCOPE"
-    if state.get("gdpr_mandatory"):
-        state["state"] = STATE_TRIGGERS
-        state["trigger_index"] = 0
+
+    if state.get("gdpr_mandatory") is False:
+        state["state"] = STATE_REPORT
+        state["content_items"] = []
+        state["content_index"] = 0
+        state["content_done"] = set()
+        state["content_skipped"] = set()
+
         await callback.message.answer(
             "ℹ️ Ваш продукт не связан с рынком Европейского союза, поэтому специфические требования "
-            "по AI Act на него не распространяются, но тк есть ПД европейских пользователей, "
-            "бот переходит к вашим обязательствам по GDPR\\.",
+            "по AI Act на него не распространяются\\.\n\n"
+            "Также обязательный трек GDPR не выявлен, поэтому чек\\-лист мер не требуется\\.\n\n"
+            f"📋 {escape_md(ANON_DOCUMENTATION_DISCLAIMER)}",
             parse_mode="MarkdownV2",
+            reply_markup=kb_audit_not_required(),
         )
-        await send_trigger_question(callback, state)
         return
+
+    state["state"] = STATE_CHECKLIST
+    state["content_items"] = filter_content_by_state(state)
+    state["content_index"] = 0
+    state["content_done"] = set()
+    state["content_skipped"] = set()
 
     await callback.message.answer(
         "ℹ️ Ваш продукт не связан с рынком Европейского союза, поэтому специфические требования "
-        "по AI Act на него не распространяются\\.\n\n"
-        f"📋 {escape_md(ANON_DOCUMENTATION_DISCLAIMER)}",
+        "по AI Act на него не распространяются\\. Опрос по AI Act остановлен, перехожу к списку применимых мер\\.",
         parse_mode="MarkdownV2",
-        reply_markup=kb_audit_not_required(),
     )
+    await send_checklist_item(callback, state)

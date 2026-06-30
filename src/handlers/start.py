@@ -21,10 +21,10 @@ async def cmd_start(message: Message) -> None:
     reset_state(user_id)
 
     await message.answer(
-        "👋 *Добро пожаловать в AI GDPR Navigator\\!*\n\n"
-        "Я помогу проверить ваш ИИ\\-проект на соответствие нормам GDPR\\.\n\n"
+        "👋 *Добро пожаловать в AI&GDPR Compliance Navigator\\!*\n"
+        "Я помогу проверить ваш ИИ\\-проект на соответствие нормам GDPR и AI Act\\.\n"
         "_Результаты работы бота носят справочный характер и основаны на информации, предоставленной пользователем\\. Окончательная правовая квалификация требует отдельного анализа экспертами\\._\n\n"
-        "Знаете ли вы, должна ли ваша модель соответствовать GDPR?",
+        "Начнем проверку вашего продукта?",
         parse_mode="MarkdownV2",
         reply_markup=kb_gdpr_knowledge(),
     )
@@ -43,7 +43,7 @@ async def on_gdpr_knowledge(callback: CallbackQuery) -> None:
 
     if answer == "unknown":
         await callback.message.answer(
-            "Давайте определим вместе, должна ли ваша модель соответствовать GDPR\\!\n\n"
+            "Давайте определим вместе, какие европейские правила регулируют ваш ИИ\\-продукт\\!\n\n"
             f"{progress_block(0)}",
             parse_mode="MarkdownV2",
         )

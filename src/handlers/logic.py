@@ -31,6 +31,7 @@ def _apply_ai_act_context(state: dict, node_id: str, action: str, next_node: str
     if explicit_gdpr is not None and goes_to_m1:
         state["gdpr_status"] = "mandatory" if explicit_gdpr else "anonymous"
         state["gdpr_mandatory"] = explicit_gdpr
+        state["anon_documentation_disclaimer"] = node_id == "L4" and action == "yes" and not explicit_gdpr
         if node_id == "L3" and action == "no":
             state["attack_risk"] = True
         return True
@@ -51,6 +52,7 @@ def _apply_ai_act_context(state: dict, node_id: str, action: str, next_node: str
     elif node_id == "L4" and action == "yes":
         state["gdpr_status"] = "anonymous"
         state["gdpr_mandatory"] = False
+        state["anon_documentation_disclaimer"] = True
     elif node_id == "L4" and action == "no":
         state["gdpr_status"] = "mandatory"
         state["gdpr_mandatory"] = True
