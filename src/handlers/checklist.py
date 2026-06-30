@@ -5,6 +5,7 @@ from typing import Optional
 from aiogram import F, Router
 from aiogram.types import CallbackQuery
 
+from ..analytics import log_event
 from ..formatting import escape_md
 from ..keyboards import kb_checklist_item, kb_checklist_progress
 from ..sheets_reader import filter_content_by_state
@@ -78,6 +79,7 @@ async def on_start_checklist(callback: CallbackQuery) -> None:
     state["content_done"] = set()
     state["content_skipped"] = set()
     state["state"] = STATE_CHECKLIST
+    log_event(callback.from_user, phase="phase_2", event="phase_2_started", state=state)
 
     await callback.answer()
     await callback.message.edit_reply_markup(reply_markup=None)

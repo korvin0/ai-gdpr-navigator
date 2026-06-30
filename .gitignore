@@ -5,3 +5,4 @@ credentials.json
 __pycache__/
 .idea/
 *.log
+analytics_events.csv

@@ -4,6 +4,7 @@ from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
+from ..analytics import log_event
 from ..formatting import progress_block
 from ..keyboards import kb_gdpr_knowledge
 from ..state import get_state, reset_state
@@ -18,7 +19,8 @@ router = Router()
 async def cmd_start(message: Message) -> None:
     """Начало или перезапуск бота."""
     user_id = message.from_user.id if message.from_user else 0
-    reset_state(user_id)
+    state = reset_state(user_id)
+    log_event(message.from_user, phase="start", event="bot_started", state=state)
 
     await message.answer(
         "👋 *Добро пожаловать в AI&GDPR Compliance Navigator\\!*\n"
@@ -40,6 +42,7 @@ async def on_gdpr_knowledge(callback: CallbackQuery) -> None:
 
     await callback.answer()
     await callback.message.edit_reply_markup(reply_markup=None)
+    log_event(callback.from_user, phase="phase_0", event="phase_0_started", state=state)
 
     if answer == "unknown":
         await callback.message.answer(

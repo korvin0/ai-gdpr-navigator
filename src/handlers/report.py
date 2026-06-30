@@ -5,6 +5,7 @@ from datetime import datetime
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, Message
 
+from ..analytics import log_event
 from ..formatting import progress_block
 from ..keyboards import kb_gdpr_knowledge, kb_report
 from ..reporting import generate_report
@@ -16,6 +17,7 @@ router = Router()
 
 async def send_report(callback: CallbackQuery, state: dict) -> None:
     """Отправить финальный отчет."""
+    log_event(callback.from_user, phase="phase_3", event="phase_3_started", state=state)
     await callback.message.answer(progress_block(3), parse_mode="MarkdownV2")
 
     report = generate_report(state)

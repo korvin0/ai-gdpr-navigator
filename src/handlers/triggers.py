@@ -3,6 +3,7 @@
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, Message
 
+from ..analytics import log_event
 from ..formatting import escape_md, progress_block
 from ..keyboards import kb_start_checklist, kb_yes_no, kb_yes_no_info_trigger
 from ..sheets_reader import filter_content_by_state, load_system_triggers
@@ -63,6 +64,7 @@ async def on_start_triggers(callback: CallbackQuery) -> None:
 
     state["state"] = STATE_TRIGGERS
     state["trigger_index"] = 0
+    log_event(callback.from_user, phase="phase_1", event="phase_1_started", state=state)
 
     await callback.answer()
     await callback.message.edit_reply_markup(reply_markup=None)
@@ -170,6 +172,7 @@ async def send_prohibited_warning(callback: CallbackQuery, state: dict, trigger:
     state["state"] = STATE_BLOCKED
     state["ai_act_status"] = "PROHIBITED_RISK"
     state["global_status"] = "PROHIBITED_RISK"
+    log_event(callback.from_user, phase="terminal", event="blocked_prohibited_ai", state=state)
 
     await callback.message.answer(_format_prohibited_warning(items), parse_mode="MarkdownV2")
 

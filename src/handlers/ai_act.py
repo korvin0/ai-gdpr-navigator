@@ -3,6 +3,7 @@
 from aiogram import F, Router
 from aiogram.types import CallbackQuery
 
+from ..analytics import log_event
 from ..formatting import escape_md, progress_block
 from ..keyboards import kb_ai_act_scope, kb_ai_target, kb_audit_not_required
 from ..sheets_reader import filter_content_by_state, get_logic_node
@@ -98,6 +99,7 @@ async def on_ai_act_answer(callback: CallbackQuery) -> None:
         state["ai_act_status"] = "in_scope"
         state["state"] = STATE_TRIGGERS
         state["trigger_index"] = 0
+        log_event(callback.from_user, phase="phase_1", event="phase_1_started", state=state)
         await send_trigger_question(callback, state)
         return
 
@@ -109,6 +111,7 @@ async def on_ai_act_answer(callback: CallbackQuery) -> None:
         state["content_index"] = 0
         state["content_done"] = set()
         state["content_skipped"] = set()
+        log_event(callback.from_user, phase="terminal", event="audit_not_required", state=state)
 
         await callback.message.answer(
             "ℹ️ Ваш продукт не связан с рынком Европейского союза, поэтому специфические требования "
@@ -125,6 +128,7 @@ async def on_ai_act_answer(callback: CallbackQuery) -> None:
     state["content_index"] = 0
     state["content_done"] = set()
     state["content_skipped"] = set()
+    log_event(callback.from_user, phase="phase_2", event="phase_2_started", state=state)
 
     await callback.message.answer(
         "ℹ️ Ваш продукт не связан с рынком Европейского союза, поэтому специфические требования "

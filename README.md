@@ -122,6 +122,16 @@ python main.py
 - `/start` — начать новый аудит
 - `/cancel` — сбросить и начать заново
 
+## CSV-аналитика воронки
+
+Бот пишет простые события прохождения фаз в `analytics_events.csv`:
+
+```csv
+timestamp_utc,telegram_user_id,username,full_name,phase,event,fsm_state,gdpr_mandatory,gdpr_status,ai_act_status,ai_type
+```
+
+События включают запуск бота, вход в фазы 0-3, блокировку `PROHIBITED_RISK` и терминальный случай `audit_not_required`. Путь к файлу можно изменить через `ANALYTICS_CSV_PATH`.
+
 ## Gemini AI (в разработке)
 
 Кнопка "Спросить Gemini" присутствует в Фазе 3, но пока показывает заглушку. В будущей версии будет подключен Gemini API для консультаций по результатам аудита.
